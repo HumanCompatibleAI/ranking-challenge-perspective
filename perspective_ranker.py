@@ -13,9 +13,14 @@ API_KEY = 'AIzaSyDNaVzTkMkrI58EgUa1ZuYQ88t4UJobDCM'
 
 statements = [
     "I love everything and everyone!",
-    "I am a neutral statement.",
-    "I've killed before and I'll kill again. Toxic Toxic Toxic!",
+    "I am threatening but not very profane. I do not like swearing",
+    "Im very toxic but also profane. Toxic Toxic Toxic!",
     ]
+
+attributes = ['TOXICITY',
+    'PROFANITY',
+    'THREAT']
+
 
 def score(attribute, statement):
     
@@ -29,50 +34,58 @@ def score(attribute, statement):
     
     analyze_request = {
         'comment': {'text': statement},
-        'requestedAttributes': {    attribute : {} },
+        'requestedAttributes': {attribute: {}},
     }
-
     response = client.comments().analyze(body=analyze_request).execute()
-
     result = response['attributeScores'][attribute]['summaryScore']['value']
-    return statement, result
+    return attribute, statement, result
 
-async def ranker(attribute, statement, iterations=3):
+async def ranker(attribute, statement):
     loop = asyncio.get_running_loop()
-    tasks = [
-        loop.run_in_executor(None, score, attribute, statement) for i in range(iterations)
-    ]
-    results = await asyncio.gather(*tasks)
-    return statement, results
+    task = loop.run_in_executor(None, score, attribute, statement)
+    results = await asyncio.gather(task)
+    return results
 
 
-async def process_request(attribute, statements):
-    tasks = [ranker(attribute, statement) for statement in statements]
+async def process_request(attributes, statements):
+    tasks = []
+    for attribute in attributes:
+        for statement in statements:
+            # print(attribute, statement)
+            tasks.append(ranker(attribute, statement))
+
+
     results = await asyncio.gather(*tasks)
     return results
 
 def combination(results):
-    formula_1 = 0.5
-    formula_2 = 0.4
-    formula_3 = 0.1
+    attr1= 0.2
+    attr2 = 0.2
+    attr3 = 0.1
+    
     
     combination = {}
 
-    for statement, scores in results:
-        temp = []
-        for _, i in scores:
-            temp.append(i)
-        score = formula_1 * temp[0] + formula_2 * temp[1]+ formula_3 * temp[2]
-        combination.update({statement:score})
+    for i in results:
+        # print(i)
+        for attribute, statement, score in i:
+            if statement not in combination:
+                combination[statement] = []
+            combination[statement].append(score)
         
-    return sorted(combination, key=combination.get, reverse=True)
+    scoring = []
+    
+    for statement, scores in combination.items():
+        combined_score = (attr1 * scores[0]) + (attr2 * scores[1]) + (attr3 * scores[2])
+        scoring.append((statement, combined_score))
+        
+    scoring.sort(key=lambda x: x[1], reverse=True)
+    return scoring
 
 
 if __name__ == '__main__':
-    attribute = 'TOXICITY'
+    attributes = attributes
     statements = statements
-
-    scores = asyncio.run(process_request(attribute, statements))
-    # print(scores)
+    scores = asyncio.run(process_request(attributes, statements))
     print(combination(scores))
     
