@@ -21,7 +21,6 @@ def client(app):
 def test_rank(client):
     statements = comments
     response = client.post("/jigsaw", json=comments)
-
             # Check if the request was successful (status code 200)
     if response.status_code != 200:
         print(f"Request failed with status code: {response.status_code}")

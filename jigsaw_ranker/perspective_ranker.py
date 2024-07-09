@@ -8,7 +8,7 @@ from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 import sys
 sys.path.append(".")
-from jigsaw_ranker.sample_data import comments
+# from jigsaw_ranker.sample_data import comments
 
 
 API_KEY = 'AIzaSyDNaVzTkMkrI58EgUa1ZuYQ88t4UJobDCM'
@@ -40,6 +40,7 @@ arm_3 = ['CONSTRUCTIVE_EXPERIMENTAL',
     'TOXICITY']
 
 arms = [arm_1, arm_2, arm_3]
+
 def score(attributes, statement):
     
     store = []
