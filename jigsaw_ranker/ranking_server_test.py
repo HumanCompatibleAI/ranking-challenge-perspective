@@ -1,5 +1,6 @@
 import json
 import sys
+print("Python EXE:", sys.executable)
 
 sys.path.append(".")  # allows for importing from the current directory
 from jigsaw_ranker.sample_data import comments
