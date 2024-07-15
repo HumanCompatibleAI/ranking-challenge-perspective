@@ -1,6 +1,5 @@
 import json
 import sys
-print("Python EXE:", sys.executable)
 
 sys.path.append(".")  # allows for importing from the current directory
 from jigsaw_ranker.sample_data import comments
@@ -21,7 +20,7 @@ def client(app):
 
 def test_rank(client):
     statements = comments
-    response = client.post("/jigsaw", json=comments)
+    response = client.post("/rank", json=comments)
             # Check if the request was successful (status code 200)
     if response.status_code != 200:
         print(f"Request failed with status code: {response.status_code}")

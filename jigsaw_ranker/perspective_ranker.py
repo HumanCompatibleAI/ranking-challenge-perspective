@@ -11,6 +11,7 @@ from ranking_challenge.request import RankingRequest
 from ranking_challenge.response import RankingResponse
 sys.path.append(".")
 # from jigsaw_ranker.sample_data import comments
+from collections import namedtuple
 
 
 API_KEY = 'AIzaSyDNaVzTkMkrI58EgUa1ZuYQ88t4UJobDCM'
@@ -68,16 +69,19 @@ class PerspectiveRanker:
     def __init__(self, data):
         self.api_key = API_KEY
         self.data = data  
+
         
     # Selects arm based on cohort index
     def arm_selection(self, data):
-        cohort = data.session.cohort_index
-        if cohort >0 and cohort < 1000: # These are arbitrary values until I know the cohort index split
+        cohort = data.session.cohort
+        if cohort == "arm1":
             return arm_1
-        elif cohort > 1000 and cohort < 2000:
+        elif cohort == "arm2":
             return arm_2
-        else:
+        elif cohort == "arm3":
             return arm_3
+        else: # Just for testing purposes, this line should be removed
+            return arm_1
     
     async def score(self, attributes, statement, statement_id):
         # Necessary to use asyncio.to_thread to avoid blocking the event loop. googleapiclient is synchronous.
@@ -93,12 +97,17 @@ class PerspectiveRanker:
         
         analyze_request = {
             'comment': {'text': statement},
+            'languages': ['en'], # This is just for testing, test data is in latin which is not supported
             'requestedAttributes': {attr: {} for attr in attributes}
         }
         
         response = client.comments().analyze(body=analyze_request).execute()
         results = [(attr, response['attributeScores'][attr]['summaryScore']['value']) for attr in attributes]
-        return statement, results, statement_id
+        
+        returned_tuple = namedtuple('returned_tuple', " statement attr_scores statement_id")
+        result = returned_tuple(statement, results, statement_id)
+        
+        return result
             
     async def ranker(self):
         arm = self.arm_selection(self.data)
@@ -127,12 +136,12 @@ class PerspectiveRanker:
         
         reordered_statements = []
         
-        for result in results:
+        for named_tuple in results:
             combined_score = 0
-            for group in result[1]: 
+            for group in named_tuple.attr_scores: 
                 attribute, score = group
                 combined_score += weightings[attribute] * score
-            reordered_statements.append((result[2], combined_score)) 
+            reordered_statements.append((named_tuple.statement_id, combined_score)) 
         
         
         reordered_statements.sort(key=lambda x: x[1], reverse=True)
@@ -143,13 +152,11 @@ class PerspectiveRanker:
     }
         return result
 
-@app.post("/jigsaw")
+@app.post("/rank")
 async def main(ranking_request: RankingRequest) -> RankingResponse:
     ranker = PerspectiveRanker(ranking_request)
     results = await ranker.ranker()
     return results
 
 
-# if __name__ == '__main__':
-#     asyncio.run(main())
 

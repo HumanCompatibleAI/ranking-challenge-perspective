@@ -11,7 +11,7 @@ import sample_data
 time.sleep(2)
 
 # Send POST request to the API
-response = requests.post("http://localhost:8000/jigsaw", json=sample_data.comments)
+response = requests.post("http://localhost:8000/rank", json=sample_data.comments)
 
 # Check if the request was successful (status code 200)
 if response.status_code == 200:
