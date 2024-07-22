@@ -10,7 +10,6 @@ import sys
 from ranking_challenge.request import RankingRequest
 from ranking_challenge.response import RankingResponse
 sys.path.append(".")
-# from jigsaw_ranker.sample_data import comments
 from collections import namedtuple
 
 
@@ -62,26 +61,23 @@ arm_3 = ['CONSTRUCTIVE_EXPERIMENTAL' ,
 
 arms = [arm_1, arm_2, arm_3]
 
-
-### Rewritten
-
 class PerspectiveRanker:
-    def __init__(self, data):
-        self.api_key = API_KEY
-        self.data = data  
+    ScoredStatement = namedtuple('ScoredStatement', "statement attr_scores statement_id")
 
+    def __init__(self):
+        self.api_key = API_KEY
         
     # Selects arm based on cohort index
-    def arm_selection(self, data):
-        cohort = data.session.cohort
+    def arm_selection(self, ranking_request):
+        cohort = ranking_request.session.cohort
         if cohort == "arm1":
             return arm_1
         elif cohort == "arm2":
             return arm_2
         elif cohort == "arm3":
             return arm_3
-        else: # Just for testing purposes, this line should be removed
-            return arm_1
+        else:
+            return ValueError("Invalid cohort index")
     
     async def score(self, attributes, statement, statement_id):
         # Necessary to use asyncio.to_thread to avoid blocking the event loop. googleapiclient is synchronous.
@@ -97,22 +93,21 @@ class PerspectiveRanker:
         
         analyze_request = {
             'comment': {'text': statement},
-            'languages': ['en'], # This is just for testing, test data is in latin which is not supported
+            'languages': ['en'], 
             'requestedAttributes': {attr: {} for attr in attributes}
         }
         
         response = client.comments().analyze(body=analyze_request).execute()
         results = [(attr, response['attributeScores'][attr]['summaryScore']['value']) for attr in attributes]
         
-        returned_tuple = namedtuple('returned_tuple', " statement attr_scores statement_id")
-        result = returned_tuple(statement, results, statement_id)
+        result = self.ScoredStatement(statement, results, statement_id)
         
         return result
             
-    async def ranker(self):
-        arm = self.arm_selection(self.data)
+    async def ranker(self, ranking_request: RankingRequest):
+        arm = self.arm_selection(ranking_request)
         async with asyncio.TaskGroup() as tg:
-            tasks = [tg.create_task(self.score(arm, item.text, item.id)) for item in self.data.items]
+            tasks = [tg.create_task(self.score(arm, item.text, item.id)) for item in ranking_request.items]
 
         results = await asyncio.gather(*tasks)
         return self.arm_sort(results)
@@ -154,8 +149,8 @@ class PerspectiveRanker:
 
 @app.post("/rank")
 async def main(ranking_request: RankingRequest) -> RankingResponse:
-    ranker = PerspectiveRanker(ranking_request)
-    results = await ranker.ranker()
+    ranker = PerspectiveRanker()
+    results = await ranker.ranker(ranking_request)
     return results
 
 
