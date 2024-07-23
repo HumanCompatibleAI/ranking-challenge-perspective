@@ -1,4 +1,4 @@
-googleapiclient
+google-api-python-client
 fastapi
 dotenv
 ranking_challenge
