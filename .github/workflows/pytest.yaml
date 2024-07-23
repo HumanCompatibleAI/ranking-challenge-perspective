@@ -14,8 +14,6 @@ concurrency:
   group: ${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
-# These are needed by some worker jobs. However, those are not currently tested, and
-# even if they were, credentials should not be needed under test.
 env:
   PERSPECTIVE_API_KEY: fake_api_key
 
