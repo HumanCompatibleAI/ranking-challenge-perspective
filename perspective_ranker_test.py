@@ -19,17 +19,41 @@ def client(app):
     return TestClient(app)
 
 
+def mock_perspective_build(attributes):
+    api_response = {"attributeScores": {}}
+
+    for attr in attributes:
+        api_response["attributeScores"][attr] = {
+            "summaryScore": {
+                "value": 0.5,
+            }
+        }
+
+    config = {
+        "comments.return_value.analyze.return_value.execute.return_value": api_response
+    }
+    mock_client = Mock()
+    mock_client.configure_mock(**config)
+    mock_build = Mock()
+    mock_build.return_value = mock_client
+
+    return mock_build
+
+
 def test_rank(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "arm1"
 
-    response = client.post("/rank", json=jsonable_encoder(comments))
-    # Check if the request was successful (status code 200)
-    if response.status_code != 200:
-        assert False, f"Request failed with status code: {response.status_code}"
+    with patch("perspective_ranker.discovery") as mock_discovery:
+        mock_discovery.build = mock_perspective_build(perspective_ranker.arm_1)
 
-    result = response.json()
-    assert len(result["ranked_ids"]) == 3
+        response = client.post("/rank", json=jsonable_encoder(comments))
+        # Check if the request was successful (status code 200)
+        if response.status_code != 200:
+            assert False, f"Request failed with status code: {response.status_code}"
+
+        result = response.json()
+        assert len(result["ranked_ids"]) == 3
 
 
 def test_arm_selection():
@@ -45,24 +69,7 @@ def test_sync_score():
     rank = perspective_ranker.PerspectiveRanker()
 
     with patch("perspective_ranker.discovery") as mock_discovery:
-        api_response = {
-            "attributeScores": {
-                "TOXICITY": {
-                    "summaryScore": {
-                        "value": 0.5,
-                    }
-                }
-            }
-        }
-
-        config = {
-            "comments.return_value.analyze.return_value.execute.return_value": api_response
-        }
-        mock_client = Mock()
-        mock_client.configure_mock(**config)
-        mock_build = Mock()
-        mock_discovery.build = mock_build
-        mock_build.return_value = mock_client
+        mock_discovery.build = mock_perspective_build(["TOXICITY"])
 
         result = rank.sync_score(["TOXICITY"], "Test statement", "test_statement_id")
 
