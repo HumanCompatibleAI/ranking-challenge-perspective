@@ -1,5 +1,5 @@
 google-api-python-client
 fastapi
 python-dotenv
-ranking_challenge
+ranking-challenge
 pytest
