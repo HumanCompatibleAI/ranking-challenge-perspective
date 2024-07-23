@@ -34,5 +34,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Build and run services, then run tests
+      - name: Run tests
         run: pytest
