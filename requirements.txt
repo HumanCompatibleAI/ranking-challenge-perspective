@@ -1,3 +1,4 @@
+pytest
 googleapiclient
 fastapi
 dotenv
