@@ -4,7 +4,7 @@ from unittest.mock import patch, Mock
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
-from jigsaw_ranker import perspective_ranker
+import perspective_ranker
 from ranking_challenge.fake import fake_request
 
 
@@ -44,7 +44,7 @@ def test_arm_selection():
 def test_sync_score():
     rank = perspective_ranker.PerspectiveRanker()
 
-    with patch("jigsaw_ranker.perspective_ranker.discovery") as mock_discovery:
+    with patch("perspective_ranker.discovery") as mock_discovery:
         api_response = {
             "attributeScores": {
                 "TOXICITY": {

@@ -1,0 +1,4 @@
+googleapiclient
+fastapi
+dotenv
+ranking_challenge
