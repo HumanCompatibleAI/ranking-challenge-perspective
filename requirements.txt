@@ -1,0 +1,6 @@
+google-api-python-client
+fastapi
+python-dotenv
+ranking-challenge
+pytest
+faker
