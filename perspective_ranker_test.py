@@ -42,10 +42,12 @@ def mock_perspective_build(attributes):
 
 def test_rank(client):
     comments = fake_request(n_posts=1, n_comments=2)
-    comments.session.cohort = "arm1"
+    comments.session.cohort = "perspective_baseline"
 
     with patch("perspective_ranker.discovery") as mock_discovery:
-        mock_discovery.build = mock_perspective_build(perspective_ranker.arm_1)
+        mock_discovery.build = mock_perspective_build(
+            perspective_ranker.perspective_baseline
+        )
 
         response = client.post("/rank", json=jsonable_encoder(comments))
         # Check if the request was successful (status code 200)
@@ -59,10 +61,10 @@ def test_rank(client):
 def test_arm_selection():
     rank = perspective_ranker.PerspectiveRanker()
     comments = fake_request(n_posts=1, n_comments=2)
-    comments.session.cohort = "arm1"
+    comments.session.cohort = "perspective_baseline"
     result = rank.arm_selection(comments)
 
-    assert result == perspective_ranker.arm_1
+    assert result == perspective_ranker.perspective_baseline
 
 
 def test_sync_score():
