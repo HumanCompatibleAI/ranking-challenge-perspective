@@ -5,17 +5,18 @@ WORKDIR /app
 # Install Poetry
 RUN pip install poetry
 
-# Copy only the necessary files to install dependencies with Poetry
+# Copy only the necessary files to install dependencies
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies using Poetry
-RUN poetry config virtualenvs.create false && poetry install --only main --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-interaction --no-ansi
 
-# Copy the rest of the application code
-COPY examples/combined /app
+# Copy the entire project
+COPY . /app
 
 # Expose the port the app runs on
 EXPOSE 8000
 
 # Define the command to run the application
-CMD ["uvicorn", "perspective_ranker:app", "--reload"]
+CMD ["uvicorn", "perspective_ranker:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

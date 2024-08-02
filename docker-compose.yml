@@ -1,39 +1,26 @@
 version: '3.8'
 
 services:
-  database:
-    image: postgres:15.7-alpine
-    ports:
-      - "5435:5432"
-    environment:
-      POSTGRES_DB: "postgres"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_HOST_AUTH_METHOD: "trust"
-      PGPORT: "5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 1s
-      timeout: 14s
-      retries: 15
-      start_period: 2m"
-
   ranker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.perspective
-    # depends_on:
-    #   - redis
-    # environment:
-    #   REDIS_CONNECTION_STRING: redis://redis:6379
-    #   CELERY_BROKER: redis://redis-celery-broker:6380
-    #   CELERY_BACKEND: redis://redis-celery-broker:6380
-    command: ["uvicorn", "perspective_ranker:app", "--reload"]
+      dockerfile: Dockerfile.perspective
+    environment:
+      - PERSPECTIVE_API_KEY=${PERSPECTIVE_API_KEY}
     ports:
       - "8000:8000"
+    volumes:
+      - .:/app
+    command: ["uvicorn", "perspective_ranker:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-volumes:
-  postgres_data:
-    driver: local
+  caller:
+    build:
+      context: .
+      dockerfile: Dockerfile.perspective
+    environment:
+      - PERSPECTIVE_API_KEY=${PERSPECTIVE_API_KEY}
+    volumes:
+      - .:/app
+    command: ["python", "caller.py"]
+    depends_on:
+      - ranker
