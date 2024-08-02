@@ -27,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-arm_1 = [
+perspective_baseline = [
     "CONSTRUCTIVE_EXPERIMENTAL",
     "PERSONAL_STORY_EXPERIMENTAL",
     "AFFINITY_EXPERIMENTAL",
@@ -36,7 +36,7 @@ arm_1 = [
     "CURIOSITY_EXPERIMENTAL",
 ]
 
-arm_2 = [
+perspective_outrage = [
     "CONSTRUCTIVE_EXPERIMENTAL",
     "PERSONAL_STORY_EXPERIMENTAL",
     "AFFINITY_EXPERIMENTAL",
@@ -50,7 +50,7 @@ arm_2 = [
     "ALIENATION_EXPERIMENTAL",
 ]
 
-arm_3 = [
+perspective_toxicity = [
     "CONSTRUCTIVE_EXPERIMENTAL",
     "PERSONAL_STORY_EXPERIMENTAL",
     "AFFINITY_EXPERIMENTAL",
@@ -63,7 +63,7 @@ arm_3 = [
     "THREAT",
 ]
 
-arms = [arm_1, arm_2, arm_3]
+arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 
 
 class PerspectiveRanker:
@@ -77,12 +77,12 @@ class PerspectiveRanker:
     # Selects arm based on cohort index
     def arm_selection(self, ranking_request):
         cohort = ranking_request.session.cohort
-        if cohort == "arm1":
-            return arm_1
-        elif cohort == "arm2":
-            return arm_2
-        elif cohort == "arm3":
-            return arm_3
+        if cohort == "perspective_baseline":
+            return perspective_baseline
+        elif cohort == "perspective_outrage":
+            return perspective_outrage
+        elif cohort == "perspective_toxicity":
+            return perspective_toxicity
         else:
             raise ValueError(f"Unknown cohort: {cohort}")
 
