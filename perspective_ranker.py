@@ -28,7 +28,7 @@ app.add_middleware(
 )
 
 perspective_baseline = [
-    "CONSTRUCTIVE_EXPERIMENTAL",
+    "REASONING_EXPERIMENTAL",
     "PERSONAL_STORY_EXPERIMENTAL",
     "AFFINITY_EXPERIMENTAL",
     "COMPASSION_EXPERIMENTAL",
@@ -37,7 +37,7 @@ perspective_baseline = [
 ]
 
 perspective_outrage = [
-    "CONSTRUCTIVE_EXPERIMENTAL",
+    "REASONING_EXPERIMENTAL",
     "PERSONAL_STORY_EXPERIMENTAL",
     "AFFINITY_EXPERIMENTAL",
     "COMPASSION_EXPERIMENTAL",
@@ -51,7 +51,7 @@ perspective_outrage = [
 ]
 
 perspective_toxicity = [
-    "CONSTRUCTIVE_EXPERIMENTAL",
+    "REASONING_EXPERIMENTAL",
     "PERSONAL_STORY_EXPERIMENTAL",
     "AFFINITY_EXPERIMENTAL",
     "COMPASSION_EXPERIMENTAL",
@@ -129,7 +129,7 @@ class PerspectiveRanker:
 
     def arm_sort(self, results):
         weightings = {
-            "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+            "REASONING_EXPERIMENTAL": 1 / 6,
             "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
             "AFFINITY_EXPERIMENTAL": 1 / 6,
             "COMPASSION_EXPERIMENTAL": 1 / 6,
