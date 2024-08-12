@@ -169,3 +169,7 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
     ranker = PerspectiveRanker()
     results = await ranker.ranker(ranking_request)
     return results
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

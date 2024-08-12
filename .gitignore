@@ -11,6 +11,9 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+bin/
+lib/
+pyvenv.cfg
 downloads/
 eggs/
 .eggs/
