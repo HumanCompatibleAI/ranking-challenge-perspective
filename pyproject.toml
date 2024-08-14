@@ -11,10 +11,10 @@ description = "Ranker based on Perspective API scores."
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = ">=0.112.0"
-uvicorn = "^0.15.0"
+uvicorn = "^0.30.0"
 google-api-python-client = "^2.0.0"
-python-dotenv = "^0.19.0"
-requests = "^2.26.0"
+python-dotenv = "^1.0.1"
+requests = "^2.32.0"
 pydantic = "^2.0.0"
 
 [tool.poetry.dev-dependencies]
