@@ -1,16 +1,21 @@
 [tool.poetry]
+authors = [
+    "James Clark <jamesclark2709@gmail.com>",
+    "Haroon Iftikhar <hiftikha@umich.edu>",
+]
+package-mode = false
 name = "ranking-challenge-perspective"
-version = "0.1.0"
+version = "0.1.1"
 description = "Ranker based on Perspective API scores."
-authors = ["Haroon Iftikhar <hiftikha@umich.edu>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.68.0"
+fastapi = ">=0.112.0"
 uvicorn = "^0.15.0"
 google-api-python-client = "^2.0.0"
 python-dotenv = "^0.19.0"
 requests = "^2.26.0"
+pydantic = "^2.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
