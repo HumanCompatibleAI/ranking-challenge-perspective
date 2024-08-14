@@ -412,6 +412,20 @@ dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
+name = "prometheus-client"
+version = "0.20.0"
+description = "Python client for the Prometheus monitoring system."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "prometheus_client-0.20.0-py3-none-any.whl", hash = "sha256:cde524a85bce83ca359cc837f28b8c0db5cac7aa653a588fd7e84ba061c329e7"},
+    {file = "prometheus_client-0.20.0.tar.gz", hash = "sha256:287629d00b147a32dcb2be0b9df905da599b2d82f80377083ec8463309a4bb89"},
+]
+
+[package.extras]
+twisted = ["twisted"]
+
+[[package]]
 name = "proto-plus"
 version = "1.24.0"
 description = "Beautiful, Pythonic protocol buffers."
@@ -645,6 +659,24 @@ files = [
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "ranking-challenge"
+version = "3.2.7"
+description = "The Prosocial Ranking Challenge"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "ranking_challenge-3.2.7-py3-none-any.whl", hash = "sha256:c3fdccdd64e22dc8d1b7f1e3e0cb3a9467816cca1e6a16f7e279f015232c94f7"},
+    {file = "ranking_challenge-3.2.7.tar.gz", hash = "sha256:496ff485622acc056873f5fa0779712837912f36319e45f760b5a46b8ef69d4c"},
+]
+
+[package.dependencies]
+fastapi = "*"
+prometheus-client = "*"
+
+[package.extras]
+module = ["faker", "pydantic (>=2.6.0)"]
+
+[[package]]
 name = "requests"
 version = "2.32.3"
 description = "Python HTTP for Humans."
@@ -767,4 +799,4 @@ standard = ["colorama (>=0.4)", "httptools (>=0.5.0)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "c1da13f0f7011bdfde6675efd514ed3a13ef36aaf47caa2cb246741e8fbf0bcb"
+content-hash = "6c44e29f56824cbf2b4adc37a03adbfe329dcf8b827e513745e4b0114227f317"
