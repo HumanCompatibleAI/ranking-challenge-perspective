@@ -18,6 +18,7 @@ requests = "^2.32.0"
 pydantic = "^2.0.0"
 httpx = "^0.27.0"
 ranking_challenge = "^3.2.7"
+faker = "^27.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.3"
