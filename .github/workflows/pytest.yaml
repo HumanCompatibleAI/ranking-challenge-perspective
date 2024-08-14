@@ -29,8 +29,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: poetry install
 
       - name: Run tests
         run: pytest
