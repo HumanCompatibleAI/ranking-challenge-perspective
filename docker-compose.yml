@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.perspective
+    image: perspective-ranker:latest
     environment:
       - PERSPECTIVE_API_KEY=${PERSPECTIVE_API_KEY}
     ports:
