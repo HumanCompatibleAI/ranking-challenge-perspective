@@ -19,15 +19,16 @@ def client(app):
     return TestClient(app)
 
 
-def mock_perspective_build(attributes):
-    api_response = {"attributeScores": {}}
+def mock_perspective_build(attributes, api_response=None):
+    if api_response is None:
+        api_response = {"attributeScores": {}}
 
-    for attr in attributes:
-        api_response["attributeScores"][attr] = {
-            "summaryScore": {
-                "value": 0.5,
+        for attr in attributes:
+            api_response["attributeScores"][attr] = {
+                "summaryScore": {
+                    "value": 0.5,
+                }
             }
-        }
 
     config = {
         "comments.return_value.analyze.return_value.execute.return_value": api_response
@@ -47,6 +48,25 @@ def test_rank(client):
     with patch("perspective_ranker.discovery") as mock_discovery:
         mock_discovery.build = mock_perspective_build(
             perspective_ranker.perspective_baseline
+        )
+
+        response = client.post("/rank", json=jsonable_encoder(comments))
+        # Check if the request was successful (status code 200)
+        if response.status_code != 200:
+            assert False, f"Request failed with status code: {response.status_code}"
+
+        result = response.json()
+        assert len(result["ranked_ids"]) == 3
+
+
+def test_rank_no_score(client):
+    comments = fake_request(n_posts=1, n_comments=2)
+    comments.session.cohort = "perspective_baseline"
+
+    with patch("perspective_ranker.discovery") as mock_discovery:
+        mock_discovery.build = mock_perspective_build(
+            perspective_ranker.perspective_baseline,
+            {}, # Empty response from API
         )
 
         response = client.post("/rank", json=jsonable_encoder(comments))
@@ -88,16 +108,25 @@ def test_arm_sort():
             "Test statement 2",
             [("TOXICITY", 0.6), ("CONSTRUCTIVE_EXPERIMENTAL", 0.2)],
             "test_statement_id_2",
+            True,
         ),
         rank.ScoredStatement(
             "Test statement",
             [("TOXICITY", 0.1), ("CONSTRUCTIVE_EXPERIMENTAL", 0.1)],
             "test_statement_id_1",
+            True,
+        ),
+        rank.ScoredStatement(
+            "Test statement",
+            [("TOXICITY", 0), ("CONSTRUCTIVE_EXPERIMENTAL", 0)],
+            "test_statement_id_unscorable",
+            False,
         ),
         rank.ScoredStatement(
             "Test statement 3",
             [("TOXICITY", 0.9), ("CONSTRUCTIVE_EXPERIMENTAL", 0.3)],
             "test_statement_id_3",
+            True,
         ),
     ]
 
@@ -106,6 +135,7 @@ def test_arm_sort():
     assert result == {
         "ranked_ids": [
             "test_statement_id_1",
+            "test_statement_id_unscorable",
             "test_statement_id_2",
             "test_statement_id_3",
         ]
