@@ -20,6 +20,11 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+log_level = os.getenv("LOGGING_LEVEL", "INFO")
+numeric_level = logging.getLevelName(log_level.upper())
+if not isinstance(numeric_level, int):
+    numeric_level = logging.INFO
+logger.setLevel(numeric_level)
 logger.info("Starting up")
 
 PERSPECTIVE_HOST = os.getenv(
@@ -129,12 +134,12 @@ class PerspectiveRanker:
             try:
                 score = response["attributeScores"][attr]["summaryScore"]["value"]
             except KeyError:
-                score = 0  # for now, set the score to 0 if it wasn't possible get a score
+                score = (
+                    0  # for now, set the score to 0 if it wasn't possible get a score
+                )
                 scorable = False
 
-            results.append(
-                (attr, score)
-            )
+            results.append((attr, score))
 
         result = self.ScoredStatement(statement, results, statement_id, scorable)
 
@@ -200,7 +205,8 @@ class PerspectiveRanker:
 async def main(ranking_request: RankingRequest) -> RankingResponse:
     ranker = PerspectiveRanker()
     results = await ranker.ranker(ranking_request)
-    return results
+    logger.debug(f"ranking results: {results}")
+    return RankingResponse(ranked_ids=results["ranked_ids"])
 
 
 @app.get("/health")
