@@ -1,10 +1,12 @@
 import asyncio
 from collections import namedtuple
 import os
+import logging
 
-from googleapiclient import discovery
-from fastapi import FastAPI
+import httpx
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 import dotenv
 
 from ranking_challenge.request import RankingRequest
@@ -12,12 +14,33 @@ from ranking_challenge.response import RankingResponse
 
 dotenv.load_dotenv()
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.info("Starting up")
+
+PERSPECTIVE_HOST = os.getenv(
+    "PERSPECTIVE_HOST", "https://commentanalyzer.googleapis.com"
+)
 
 app = FastAPI(
     title="Prosocial Ranking Challenge Jigsaw Query",
     description="Ranks 3 separate arms of statements based on Perspective API scores.",
     version="0.1.0",
 )
+
+
+@app.middleware("http")
+async def log_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        logger.error("Unhandled exception", exc_info=True)
+        return PlainTextResponse(str(e), status_code=500)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -87,26 +110,19 @@ class PerspectiveRanker:
             raise ValueError(f"Unknown cohort: {cohort}")
 
     async def score(self, attributes, statement, statement_id):
-        # Necessary to use asyncio.to_thread to avoid blocking the event loop. googleapiclient is synchronous.
-        return await asyncio.to_thread(
-            self.sync_score, attributes, statement, statement_id
-        )
-
-    def sync_score(self, attributes, statement, statement_id):
-        client = discovery.build(
-            "commentanalyzer",
-            "v1alpha1",
-            developerKey=self.api_key,
-            discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
-            static_discovery=False,
-        )
-        analyze_request = {
+        headers = {"Content-Type": "application/json"}
+        data = {
             "comment": {"text": statement},
             "languages": ["en"],
             "requestedAttributes": {attr: {} for attr in attributes},
         }
 
-        response = client.comments().analyze(body=analyze_request).execute()
+        response = httpx.post(
+            f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
+            json=data,
+            headers=headers,
+        ).json()
+
         results = []
         scorable = True
         for attr in attributes:
@@ -185,3 +201,8 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
     ranker = PerspectiveRanker()
     results = await ranker.ranker(ranking_request)
     return results
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
