@@ -91,7 +91,7 @@ arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 
 class PerspectiveRanker:
     ScoredStatement = namedtuple(
-        "ScoredStatement", "statement attr_scores statement_id"
+        "ScoredStatement", "statement attr_scores statement_id scorable"
     )
 
     def __init__(self):
@@ -116,17 +116,27 @@ class PerspectiveRanker:
             "languages": ["en"],
             "requestedAttributes": {attr: {} for attr in attributes},
         }
+
         response = httpx.post(
             f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
             json=data,
             headers=headers,
         ).json()
-        results = [
-            (attr, response["attributeScores"][attr]["summaryScore"]["value"])
-            for attr in attributes
-        ]
 
-        result = self.ScoredStatement(statement, results, statement_id)
+        results = []
+        scorable = True
+        for attr in attributes:
+            try:
+                score = response["attributeScores"][attr]["summaryScore"]["value"]
+            except KeyError:
+                score = 0  # for now, set the score to 0 if it wasn't possible get a score
+                scorable = False
+
+            results.append(
+                (attr, score)
+            )
+
+        result = self.ScoredStatement(statement, results, statement_id, scorable)
 
         return result
 
@@ -138,10 +148,10 @@ class PerspectiveRanker:
                 for item in ranking_request.items
             ]
 
-        results = await asyncio.gather(*tasks)
-        return self.arm_sort(results)
+        scored_statements = await asyncio.gather(*tasks)
+        return self.arm_sort(scored_statements)
 
-    def arm_sort(self, results):
+    def arm_sort(self, scored_statements):
         weightings = {
             "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
             "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
@@ -162,12 +172,20 @@ class PerspectiveRanker:
 
         reordered_statements = []
 
-        for named_tuple in results:
-            combined_score = 0
-            for group in named_tuple.attr_scores:
-                attribute, score = group
-                combined_score += weightings[attribute] * score
-            reordered_statements.append((named_tuple.statement_id, combined_score))
+        last_score = 0
+
+        for statement in scored_statements:
+            if statement.scorable:
+                combined_score = 0
+                for group in statement.attr_scores:
+                    attribute, score = group
+                    combined_score += weightings[attribute] * score
+            else:
+                # if a statement is not scorable, keep it with its neighbor. this prevents us from collecting
+                # all unscorable statements at one end of the ranking.
+                combined_score = last_score
+            reordered_statements.append((statement.statement_id, combined_score))
+            last_score = combined_score
 
         reordered_statements.sort(key=lambda x: x[1], reverse=True)
         filtered = [x[0] for x in reordered_statements]
