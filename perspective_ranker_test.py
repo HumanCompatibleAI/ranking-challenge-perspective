@@ -1,8 +1,10 @@
+import os
 import pytest
 from unittest.mock import patch, Mock
 
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
+import respx
 
 import perspective_ranker
 from ranking_challenge.fake import fake_request
@@ -19,63 +21,53 @@ def client(app):
     return TestClient(app)
 
 
-def mock_perspective_build(attributes, api_response=None):
-    if api_response is None:
-        api_response = {"attributeScores": {}}
+def api_response(attributes):
+    api_response = {"attributeScores": {}}
 
-        for attr in attributes:
-            api_response["attributeScores"][attr] = {
-                "summaryScore": {
-                    "value": 0.5,
-                }
+    for attr in attributes:
+        api_response["attributeScores"][attr] = {
+            "summaryScore": {
+                "value": 0.5,
             }
+        }
 
-    config = {
-        "comments.return_value.analyze.return_value.execute.return_value": api_response
-    }
-    mock_client = Mock()
-    mock_client.configure_mock(**config)
-    mock_build = Mock()
-    mock_build.return_value = mock_client
-
-    return mock_build
+    return api_response
 
 
+PERSPECTIVE_URL = f"{perspective_ranker.PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={os.environ["PERSPECTIVE_API_KEY"]}"
+
+
+@respx.mock
 def test_rank(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
 
-    with patch("perspective_ranker.discovery") as mock_discovery:
-        mock_discovery.build = mock_perspective_build(
-            perspective_ranker.perspective_baseline
-        )
+    respx.post(PERSPECTIVE_URL).respond(
+        json=api_response(perspective_ranker.perspective_baseline)
+    )
 
-        response = client.post("/rank", json=jsonable_encoder(comments))
-        # Check if the request was successful (status code 200)
-        if response.status_code != 200:
-            assert False, f"Request failed with status code: {response.status_code}"
+    response = client.post("/rank", json=jsonable_encoder(comments))
+    # Check if the request was successful (status code 200)
+    if response.status_code != 200:
+        assert False, f"Request failed with status code: {response.status_code}"
 
-        result = response.json()
-        assert len(result["ranked_ids"]) == 3
+    result = response.json()
+    assert len(result["ranked_ids"]) == 3
 
-
+@respx.mock
 def test_rank_no_score(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
 
-    with patch("perspective_ranker.discovery") as mock_discovery:
-        mock_discovery.build = mock_perspective_build(
-            perspective_ranker.perspective_baseline,
-            {}, # Empty response from API
-        )
+    respx.post(PERSPECTIVE_URL).respond(json={})
 
-        response = client.post("/rank", json=jsonable_encoder(comments))
-        # Check if the request was successful (status code 200)
-        if response.status_code != 200:
-            assert False, f"Request failed with status code: {response.status_code}"
+    response = client.post("/rank", json=jsonable_encoder(comments))
+    # Check if the request was successful (status code 200)
+    if response.status_code != 200:
+        assert False, f"Request failed with status code: {response.status_code}"
 
-        result = response.json()
-        assert len(result["ranked_ids"]) == 3
+    result = response.json()
+    assert len(result["ranked_ids"]) == 3
 
 
 def test_arm_selection():
@@ -87,17 +79,20 @@ def test_arm_selection():
     assert result == perspective_ranker.perspective_baseline
 
 
-def test_sync_score():
+@respx.mock
+@pytest.mark.asyncio
+async def test_score():
     rank = perspective_ranker.PerspectiveRanker()
 
-    with patch("perspective_ranker.discovery") as mock_discovery:
-        mock_discovery.build = mock_perspective_build(["TOXICITY"])
+    respx.post(PERSPECTIVE_URL).respond(
+        json=api_response(["TOXICITY"])
+    )
 
-        result = rank.sync_score(["TOXICITY"], "Test statement", "test_statement_id")
+    result = await rank.score(["TOXICITY"], "Test statement", "test_statement_id")
 
-        assert result.attr_scores == [("TOXICITY", 0.5)]
-        assert result.statement == "Test statement"
-        assert result.statement_id == "test_statement_id"
+    assert result.attr_scores == [("TOXICITY", 0.5)]
+    assert result.statement == "Test statement"
+    assert result.statement_id == "test_statement_id"
 
 
 def test_arm_sort():
