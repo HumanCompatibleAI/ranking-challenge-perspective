@@ -11,8 +11,23 @@ import dotenv
 
 from ranking_challenge.request import RankingRequest
 from ranking_challenge.response import RankingResponse
+from ranking_challenge.prometheus_metrics_otel_middleware import (
+    expose_metrics,
+    CollectorRegistry,
+)
+from prometheus_client import Counter
 
 dotenv.load_dotenv()
+
+# Create a registry
+registry = CollectorRegistry()
+
+rank_calls = Counter(
+    "rank_calls", "Number of calls to the rank endpoint", registry=registry
+)
+exceptions_count = Counter(
+    "exceptions_count", "Number of unhandled exceptions", registry=registry
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,11 +46,23 @@ PERSPECTIVE_HOST = os.getenv(
     "PERSPECTIVE_HOST", "https://commentanalyzer.googleapis.com"
 )
 
+
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.getMessage().find("/health") == -1
+
+
+# Filter out /health since it's noisy
+if numeric_level != logging.DEBUG:
+    logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 app = FastAPI(
     title="Prosocial Ranking Challenge Jigsaw Query",
     description="Ranks 3 separate arms of statements based on Perspective API scores.",
     version="0.1.0",
 )
+
+expose_metrics(app, endpoint="/metrics", registry=registry)
 
 
 @app.middleware("http")
@@ -43,6 +70,7 @@ async def log_exceptions_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     except Exception as e:
+        exceptions_count.inc()
         logger.error("Unhandled exception", exc_info=True)
         return PlainTextResponse(str(e), status_code=500)
 
@@ -206,6 +234,7 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
     ranker = PerspectiveRanker()
     results = await ranker.ranker(ranking_request)
     logger.debug(f"ranking results: {results}")
+    rank_calls.inc()
     return RankingResponse(ranked_ids=results["ranked_ids"])
 
 
