@@ -237,7 +237,7 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
         return RankingResponse(ranked_ids=results["ranked_ids"])
     except Exception as e:
         exceptions_count.inc()
-        logger.error("Unhandled exception", exc_info=True)
+        logger.error("Error in rank endpoint:", exc_info=True)
         raise
 
 
