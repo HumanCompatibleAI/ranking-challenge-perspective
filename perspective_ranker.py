@@ -66,12 +66,10 @@ expose_metrics(app, endpoint="/metrics", registry=registry)
 
 
 @app.middleware("http")
-async def log_exceptions_middleware(request: Request, call_next):
+async def catch_all_error_handler_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     except Exception as e:
-        exceptions_count.inc()
-        logger.error("Unhandled exception", exc_info=True)
         return PlainTextResponse(str(e), status_code=500)
 
 
@@ -231,11 +229,16 @@ class PerspectiveRanker:
 
 @app.post("/rank")
 async def main(ranking_request: RankingRequest) -> RankingResponse:
-    ranker = PerspectiveRanker()
-    results = await ranker.ranker(ranking_request)
-    logger.debug(f"ranking results: {results}")
-    rank_calls.inc()
-    return RankingResponse(ranked_ids=results["ranked_ids"])
+    try:
+        ranker = PerspectiveRanker()
+        results = await ranker.ranker(ranking_request)
+        logger.debug(f"ranking results: {results}")
+        rank_calls.inc()
+        return RankingResponse(ranked_ids=results["ranked_ids"])
+    except Exception as e:
+        exceptions_count.inc()
+        logger.error("Unhandled exception", exc_info=True)
+        raise
 
 
 @app.get("/health")
