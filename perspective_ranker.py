@@ -168,28 +168,45 @@ class PerspectiveRanker:
             "requestedAttributes": {attr: {} for attr in attributes},
         }
 
-        response = httpx.post(
-            f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
-            json=data,
-            headers=headers,
-        ).json()
+        logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
+        logger.debug(f"Request payload: {data}")
 
-        results = []
-        scorable = True
-        for attr in attributes:
-            try:
-                score = response["attributeScores"][attr]["summaryScore"]["value"]
-            except KeyError:
-                score = (
-                    0  # for now, set the score to 0 if it wasn't possible get a score
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
+                    json=data,
+                    headers=headers,
                 )
-                scorable = False
+            
+            response.raise_for_status()
+            response_json = response.json()
+            
+            logger.debug(f"Response for statement_id {statement_id}: {response_json}")
 
-            results.append((attr, score))
+            results = []
+            scorable = True
+            for attr in attributes:
+                try:
+                    score = response_json["attributeScores"][attr]["summaryScore"]["value"]
+                except KeyError:
+                    logger.warning(f"Failed to get score for attribute {attr} in statement_id {statement_id}")
+                    score = 0
+                    scorable = False
 
-        result = self.ScoredStatement(statement, results, statement_id, scorable)
+                results.append((attr, score))
 
-        return result
+            result = self.ScoredStatement(statement, results, statement_id, scorable)
+            return result
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error occurred for statement_id {statement_id}: {e}")
+            logger.error(f"Response content: {e.response.text}")
+            raise
+
+        except Exception as e:
+            logger.error(f"Unexpected error occurred for statement_id {statement_id}: {e}")
+            raise
 
     async def ranker(self, ranking_request: RankingRequest):
         arm_weights = self.arm_selection(ranking_request)
