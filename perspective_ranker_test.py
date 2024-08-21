@@ -125,7 +125,7 @@ def test_arm_sort():
         ),
     ]
 
-    result = rank.arm_sort(scored_statements)
+    result = rank.arm_sort(perspective_ranker.perspective_toxicity, scored_statements)
 
     assert result == {
         "ranked_ids": [

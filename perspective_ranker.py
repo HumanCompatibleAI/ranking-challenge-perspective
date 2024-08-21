@@ -81,41 +81,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-perspective_baseline = [
-    "CONSTRUCTIVE_EXPERIMENTAL",
-    "PERSONAL_STORY_EXPERIMENTAL",
-    "AFFINITY_EXPERIMENTAL",
-    "COMPASSION_EXPERIMENTAL",
-    "RESPECT_EXPERIMENTAL",
-    "CURIOSITY_EXPERIMENTAL",
-]
+perspective_baseline = {
+    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
+    "AFFINITY_EXPERIMENTAL": 1 / 6,
+    "COMPASSION_EXPERIMENTAL": 1 / 6,
+    "RESPECT_EXPERIMENTAL": 1 / 6,
+    "CURIOSITY_EXPERIMENTAL": 1 / 6,            
+}
 
-perspective_outrage = [
-    "CONSTRUCTIVE_EXPERIMENTAL",
-    "PERSONAL_STORY_EXPERIMENTAL",
-    "AFFINITY_EXPERIMENTAL",
-    "COMPASSION_EXPERIMENTAL",
-    "RESPECT_EXPERIMENTAL",
-    "CURIOSITY_EXPERIMENTAL",
-    "FEARMONGERING_EXPERIMENTAL",
-    "GENERALIZATION_EXPERIMENTAL",
-    "SCAPEGOATING_EXPERIMENTAL",
-    "MORAL_OUTRAGE_EXPERIMENTAL",
-    "ALIENATION_EXPERIMENTAL",
-]
+perspective_outrage = {
+    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
+    "AFFINITY_EXPERIMENTAL": 1 / 6,
+    "COMPASSION_EXPERIMENTAL": 1 / 6,
+    "RESPECT_EXPERIMENTAL": 1 / 6,
+    "CURIOSITY_EXPERIMENTAL": 1 / 6,
+    "FEARMONGERING_EXPERIMENTAL": -1 / 3,
+    "GENERALIZATION_EXPERIMENTAL": -1 / 3,
+    "SCAPEGOATING_EXPERIMENTAL": -1 / 9,
+    "MORAL_OUTRAGE_EXPERIMENTAL": -1 / 9,
+    "ALIENATION_EXPERIMENTAL": -1 / 9,
+}
 
-perspective_toxicity = [
-    "CONSTRUCTIVE_EXPERIMENTAL",
-    "PERSONAL_STORY_EXPERIMENTAL",
-    "AFFINITY_EXPERIMENTAL",
-    "COMPASSION_EXPERIMENTAL",
-    "RESPECT_EXPERIMENTAL",
-    "CURIOSITY_EXPERIMENTAL",
-    "TOXICITY",
-    "IDENTITY_ATTACK",
-    "INSULT",
-    "THREAT",
-]
+perspective_toxicity = {
+    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
+    "AFFINITY_EXPERIMENTAL": 1 / 6,
+    "COMPASSION_EXPERIMENTAL": 1 / 6,
+    "RESPECT_EXPERIMENTAL": 1 / 6,
+    "CURIOSITY_EXPERIMENTAL": 1 / 6,
+    "TOXICITY": -1 / 4,
+    "IDENTITY_ATTACK": -1 / 4,
+    "INSULT": -1 / 4,
+    "THREAT": -1 / 4,
+}
+
+perspective_baseline_minus_outrage_toxic = {
+    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
+    "AFFINITY_EXPERIMENTAL": 1 / 6,
+    "COMPASSION_EXPERIMENTAL": 1 / 6,
+    "RESPECT_EXPERIMENTAL": 1 / 6,
+    "CURIOSITY_EXPERIMENTAL": 1 / 6,
+    "FEARMONGERING_EXPERIMENTAL": -1 / 6,
+    "GENERALIZATION_EXPERIMENTAL": -1 / 6,
+    "SCAPEGOATING_EXPERIMENTAL": -1 / 18,
+    "MORAL_OUTRAGE_EXPERIMENTAL": -1 / 18,
+    "ALIENATION_EXPERIMENTAL": -1 / 18,
+    "TOXICITY": -1 / 8,
+    "IDENTITY_ATTACK": -1 / 8,
+    "INSULT": -1 / 8,
+    "THREAT": -1 / 8,
+}
 
 arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 
@@ -137,6 +155,8 @@ class PerspectiveRanker:
             return perspective_outrage
         elif cohort == "perspective_toxicity":
             return perspective_toxicity
+        elif cohort == "perspective_baseline_minus_outrage_toxic":
+            return perspective_baseline_minus_outrage_toxic
         else:
             raise ValueError(f"Unknown cohort: {cohort}")
 
@@ -172,34 +192,17 @@ class PerspectiveRanker:
         return result
 
     async def ranker(self, ranking_request: RankingRequest):
-        arm = self.arm_selection(ranking_request)
+        arm_weights = self.arm_selection(ranking_request)
         async with asyncio.TaskGroup() as tg:
             tasks = [
-                tg.create_task(self.score(arm, item.text, item.id))
+                tg.create_task(self.score(arm_weights, item.text, item.id))
                 for item in ranking_request.items
             ]
 
         scored_statements = await asyncio.gather(*tasks)
-        return self.arm_sort(scored_statements)
+        return self.arm_sort(arm_weights, scored_statements)
 
-    def arm_sort(self, scored_statements):
-        weightings = {
-            "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
-            "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
-            "AFFINITY_EXPERIMENTAL": 1 / 6,
-            "COMPASSION_EXPERIMENTAL": 1 / 6,
-            "RESPECT_EXPERIMENTAL": 1 / 6,
-            "CURIOSITY_EXPERIMENTAL": 1 / 6,
-            "FEARMONGERING_EXPERIMENTAL": -1 / 3,
-            "GENERALIZATION_EXPERIMENTAL": -1 / 3,
-            "SCAPEGOATING_EXPERIMENTAL": -1 / 9,
-            "MORAL_OUTRAGE_EXPERIMENTAL": -1 / 9,
-            "ALIENATION_EXPERIMENTAL": -1 / 9,
-            "TOXICITY": -1 / 4,
-            "IDENTITY_ATTACK": -1 / 4,
-            "INSULT": -1 / 4,
-            "THREAT": -1 / 4,
-        }
+    def arm_sort(self, arm_weightings, scored_statements):
 
         reordered_statements = []
 
@@ -210,7 +213,7 @@ class PerspectiveRanker:
                 combined_score = 0
                 for group in statement.attr_scores:
                     attribute, score = group
-                    combined_score += weightings[attribute] * score
+                    combined_score += arm_weightings[attribute] * score
             else:
                 # if a statement is not scorable, keep it with its neighbor. this prevents us from collecting
                 # all unscorable statements at one end of the ranking.
