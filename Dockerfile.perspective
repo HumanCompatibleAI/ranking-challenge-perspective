@@ -15,6 +15,10 @@ RUN poetry config virtualenvs.create false \
 # Copy the entire project
 COPY . /app
 
+# Set the API key as an environment variable
+ARG PERSPECTIVE_API_KEY
+ENV PERSPECTIVE_API_KEY=$PERSPECTIVE_API_KEY
+
 # Expose the port the app runs on
 EXPOSE 8000
 
