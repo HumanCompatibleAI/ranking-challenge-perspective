@@ -99,7 +99,7 @@ perspective_outrage = {
     "CURIOSITY_EXPERIMENTAL": 1 / 6,
     "FEARMONGERING_EXPERIMENTAL": -1 / 3,
     "GENERALIZATION_EXPERIMENTAL": -1 / 3,
-    "SCAPEGOATING_EXPERIMENTAL": -1 / 9,
+    # "SCAPEGOATING_EXPERIMENTAL": -1 / 9,
     "MORAL_OUTRAGE_EXPERIMENTAL": -1 / 9,
     "ALIENATION_EXPERIMENTAL": -1 / 9,
 }
@@ -126,7 +126,7 @@ perspective_baseline_minus_outrage_toxic = {
     "CURIOSITY_EXPERIMENTAL": 1 / 6,
     "FEARMONGERING_EXPERIMENTAL": -1 / 6,
     "GENERALIZATION_EXPERIMENTAL": -1 / 6,
-    "SCAPEGOATING_EXPERIMENTAL": -1 / 18,
+    # "SCAPEGOATING_EXPERIMENTAL": -1 / 18,
     "MORAL_OUTRAGE_EXPERIMENTAL": -1 / 18,
     "ALIENATION_EXPERIMENTAL": -1 / 18,
     "TOXICITY": -1 / 8,
@@ -167,6 +167,9 @@ class PerspectiveRanker:
             "languages": ["en"],
             "requestedAttributes": {attr: {} for attr in attributes},
         }
+        
+        if not statement.strip():
+            return self.ScoredStatement(statement, [], statement_id, False)
 
         logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
         logger.debug(f"Request payload: {data}")
