@@ -2,6 +2,7 @@ import asyncio
 from collections import namedtuple
 import os
 import logging
+import time
 
 import httpx
 from fastapi import FastAPI, Request
@@ -22,10 +23,7 @@ dotenv.load_dotenv()
 # Create a registry
 registry = CollectorRegistry()
 
-<<<<<<< Updated upstream
-=======
 # -- Metrics --
->>>>>>> Stashed changes
 rank_calls = Counter(
     "rank_calls", "Number of calls to the rank endpoint", registry=registry
 )
@@ -282,8 +280,6 @@ class PerspectiveRanker:
         }
         return result
 
-<<<<<<< Updated upstream
-=======
     async def rank(self, ranking_request: RankingRequest):
         arm_weights = self.arm_selection(ranking_request)
         
@@ -315,20 +311,19 @@ class PerspectiveRanker:
 # Global singleton, so that all calls share the same httpx client
 ranker = PerspectiveRanker()
 
->>>>>>> Stashed changes
 
 @app.post("/rank")
 async def main(ranking_request: RankingRequest) -> RankingResponse:
     try:
-        ranker = PerspectiveRanker()
-        results = await ranker.ranker(ranking_request)
+        start_time = time.time() 
+
+        results = await ranker.rank(ranking_request)
+
+        latency = time.time() - start_time 
         logger.debug(f"ranking results: {results}")
-<<<<<<< Updated upstream
-=======
         logger.debug(f"ranking took time: {latency}")
         
         # Record metrics
->>>>>>> Stashed changes
         rank_calls.inc()
         ranking_latency.observe(latency)
         
