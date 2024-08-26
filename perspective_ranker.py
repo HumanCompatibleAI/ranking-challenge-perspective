@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 import dotenv
+import threading
 
 from ranking_challenge.request import RankingRequest
 from ranking_challenge.response import RankingResponse
@@ -16,6 +17,17 @@ from ranking_challenge.prometheus_metrics_otel_middleware import (
     CollectorRegistry,
 )
 from prometheus_client import Counter, Histogram
+
+from pyinstrument import Profiler
+from pyinstrument.renderers.html import HTMLRenderer
+from pyinstrument.renderers.speedscope import SpeedscopeRenderer
+
+# Global counter to track the max number of open requests
+open_requests = 0
+max_open_requests = 0
+lock = threading.Lock()
+global request_start_time
+
 
 # each post requires a single request, so see if we can do them all at once
 KEEPALIVE_CONNECTIONS = 50
@@ -115,6 +127,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def profile_request(request: Request, call_next: callable):
+    """Profile the current request
+
+    Taken from https://pyinstrument.readthedocs.io/en/latest/guide.html#profile-a-web-request-in-fastapi
+    with small improvements.
+
+    """
+    # we map a profile type to a file extension, as well as a pyinstrument profile renderer
+    profile_type_to_ext = {"html": "html", "speedscope": "speedscope.json"}
+    profile_type_to_renderer = {
+        "html": HTMLRenderer,
+        "speedscope": SpeedscopeRenderer,
+    }
+
+    # if the `profile=true` HTTP query argument is passed, we profile the request
+    if True: # request.query_params.get("profile", False):
+
+        # The default profile format is speedscope
+        profile_type = request.query_params.get("profile_format", "speedscope")
+
+        # we profile the request along with all additional middlewares, by interrupting
+        # the program every 1ms1 and records the entire stack at that point
+        with Profiler(interval=0.001, async_mode="enabled") as profiler:
+            response = await call_next(request)
+
+        # we dump the profiling into a file
+        extension = profile_type_to_ext[profile_type]
+        renderer = profile_type_to_renderer[profile_type]()
+        with open(f"profile.{extension}", "w") as out:
+            out.write(profiler.output(renderer=renderer))
+        return response
+
+    # Proceed without profiling
+    return await call_next(request)
+
+
 # -- Ranking weights --
 perspective_baseline = {
     "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
@@ -201,32 +250,11 @@ class PerspectiveRanker:
         else:
             raise ValueError(f"Unknown cohort: {cohort}")
 
-    async def score(self, attributes, statement, statement_id):
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "comment": {"text": statement},
-            "languages": ["en"],
-            "requestedAttributes": {attr: {} for attr in attributes},
-        }
-
-        # don't try to score empty text
-        if not statement.strip():
-            return self.ScoredStatement(statement, [], statement_id, False)
-
-        logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
-        # logger.debug(f"Request payload: {data}")  don't log text, it's sensitive
-
-        try:
-            response = await self.httpx_client.post(
-                f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
-                json=data,
-                headers=headers,
-            )
-
+    def process_response(self, response, statement_id, attributes, statement):
             response.raise_for_status()
             response_json = response.json()
 
-            logger.debug(f"Response for statement_id {statement_id}: {response_json}")
+            #logger.debug(f"Response for statement_id {statement_id}: {response_json}")
 
             results = []
             scorable = True
@@ -244,14 +272,53 @@ class PerspectiveRanker:
             result = self.ScoredStatement(statement, results, statement_id, scorable)
             return result
 
+    async def score(self, attributes, statement, statement_id):
+        global request_start_time
+
+        headers = {"Content-Type": "application/json"}
+        data = {
+            "comment": {"text": statement},
+            "languages": ["en"],
+            "requestedAttributes": {attr: {} for attr in attributes},
+        }
+
+        # don't try to score empty text
+        if not statement.strip():
+            return self.ScoredStatement(statement, [], statement_id, False)
+
+
+        global open_requests, max_open_requests, lock
+        with lock:
+            open_requests += 1
+            max_open_requests = max(max_open_requests, open_requests)
+
+        logger.info(f"Sending request for {statement_id} at time {time.time() - request_start_time}, outstanding {open_requests}")
+        # logger.debug(f"Request payload: {data}")  don't log text, it's sensitive
+
+        try:
+            response = await self.httpx_client.post(
+                f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
+                json=data,
+                headers=headers,
+            )
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred for statement_id {statement_id}: {e}")
             logger.error(f"Response content: {e.response.text}")
             raise
+        finally:
+            with lock:
+                open_requests -= 1
 
+
+        logger.info(f"Recevied response for {statement_id} at time {time.time() - request_start_time}, outstanding {open_requests}")
+
+        try:
+            return self.process_response(response, statement_id, attributes, statement)
+        
         except Exception as e:
             logger.error(f"Unexpected error occurred for statement_id {statement_id}: {e}")
             raise
+
 
     def arm_sort(self, arm_weightings, scored_statements):
         reordered_statements = []
@@ -294,7 +361,8 @@ class PerspectiveRanker:
             for item in ranking_request.items
         ]
         scored_statements = await asyncio.gather(*tasks)
-        
+        logger.info(f"Maximal number of simultaneous open requests: {max_open_requests}")
+
         # Count unscorable items
         unscorable_count = sum(1 for statement in scored_statements if not statement.scorable)
         unscorable_items.inc(unscorable_count)
@@ -314,13 +382,16 @@ ranker = PerspectiveRanker()
 
 @app.post("/rank")
 async def main(ranking_request: RankingRequest) -> RankingResponse:
+    global request_start_time
+    request_start_time = time.time()
+
     try:
         start_time = time.time() 
 
         results = await ranker.rank(ranking_request)
 
         latency = time.time() - start_time 
-        logger.debug(f"ranking results: {results}")
+        logger.debug(f"ranking results for {len(results['ranked_ids'])} items : {results["ranked_ids_with_scores"]}")
         logger.debug(f"ranking took time: {latency}")
         
         # Record metrics
