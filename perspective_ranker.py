@@ -17,6 +17,9 @@ from ranking_challenge.prometheus_metrics_otel_middleware import (
 )
 from prometheus_client import Counter, Histogram
 
+# don't ask for too many attributes at oncem, as they are evaluated serially in each request
+ATTRIBUTES_PER_REQUEST = 4
+
 # each post requires a single request, so see if we can do them all at once
 KEEPALIVE_CONNECTIONS = 50
 
@@ -201,7 +204,8 @@ class PerspectiveRanker:
         else:
             raise ValueError(f"Unknown cohort: {cohort}")
 
-    async def score(self, attributes, statement, statement_id):
+    # score a set of attributes for a statement
+    async def score_statement_attributes(self, statement, statement_id, attributes):
         headers = {"Content-Type": "application/json"}
         data = {
             "comment": {"text": statement},
@@ -209,14 +213,9 @@ class PerspectiveRanker:
             "requestedAttributes": {attr: {} for attr in attributes},
         }
 
-        # don't try to score empty text
-        if not statement.strip():
-            return self.ScoredStatement(statement, [], statement_id, False)
-
-        logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
-        # logger.debug(f"Request payload: {data}")  don't log text, it's sensitive
-
         try:
+            logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
+
             response = await self.httpx_client.post(
                 f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
                 json=data,
@@ -226,7 +225,7 @@ class PerspectiveRanker:
             response.raise_for_status()
             response_json = response.json()
 
-            logger.debug(f"Response for statement_id {statement_id}: {response_json}")
+            # logger.debug(f"Response for statement_id {statement_id}: {response_json}")
 
             results = []
             scorable = True
@@ -241,8 +240,10 @@ class PerspectiveRanker:
 
                 results.append((attr, score))
 
-            result = self.ScoredStatement(statement, results, statement_id, scorable)
-            return result
+            return {
+                    "results": results, 
+                    "scorable": scorable,
+            }
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred for statement_id {statement_id}: {e}")
@@ -251,7 +252,33 @@ class PerspectiveRanker:
 
         except Exception as e:
             logger.error(f"Unexpected error occurred for statement_id {statement_id}: {e}")
-            raise
+            raise                
+
+
+    async def score_statement(self, arm_weights, statement, statement_id):
+        # don't try to score empty text
+        if not statement.strip():
+            return self.ScoredStatement(statement, [], statement_id, False)
+
+        attributes = list(arm_weights.keys())
+
+        # break attributes into chunks
+        attridx = 0
+        result_tasks = []
+        while attridx < len(attributes):
+            attributes_subset = attributes[attridx:attridx + ATTRIBUTES_PER_REQUEST]
+            result_tasks.append(self.score_statement_attributes(statement, statement_id, attributes_subset))
+            attridx += ATTRIBUTES_PER_REQUEST
+
+        # score different attributes in parallel
+        result_dicts = await asyncio.gather(*result_tasks)
+
+        scorable = all(item["scorable"] for item in result_dicts)
+        results = [attr for di in result_dicts for attr in di["results"]]
+
+        result = self.ScoredStatement(statement, results, statement_id, scorable)
+        return result
+
 
     def arm_sort(self, arm_weightings, scored_statements):
         reordered_statements = []
@@ -280,6 +307,7 @@ class PerspectiveRanker:
         }
         return result
 
+
     async def rank(self, ranking_request: RankingRequest):
         arm_weights = self.arm_selection(ranking_request)
         
@@ -290,7 +318,7 @@ class PerspectiveRanker:
         items_per_request.observe(len(ranking_request.items))
         
         tasks = [
-            self.score(arm_weights, item.text, item.id)
+            self.score_statement(arm_weights, item.text, item.id)
             for item in ranking_request.items
         ]
         scored_statements = await asyncio.gather(*tasks)
@@ -320,7 +348,7 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
         results = await ranker.rank(ranking_request)
 
         latency = time.time() - start_time 
-        logger.debug(f"ranking results: {results}")
+        logger.debug(f"ranking results for {len(results['ranked_ids'])} items : {results["ranked_ids_with_scores"]}")
         logger.debug(f"ranking took time: {latency}")
         
         # Record metrics

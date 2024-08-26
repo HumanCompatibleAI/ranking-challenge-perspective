@@ -88,8 +88,9 @@ async def test_score():
         json=api_response(["TOXICITY"])
     )
 
-    result = await rank.score(["TOXICITY"], "Test statement", "test_statement_id")
+    result = await rank.score_statement({"TOXICITY":0.99}, "Test statement", "test_statement_id")
 
+    assert result.scorable == True
     assert result.attr_scores == [("TOXICITY", 0.5)]
     assert result.statement == "Test statement"
     assert result.statement_id == "test_statement_id"
