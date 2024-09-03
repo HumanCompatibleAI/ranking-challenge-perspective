@@ -179,8 +179,7 @@ class PerspectiveRanker:
     )
 
     def __init__(self):
-        self.api_key = "AIzaSyA4S0_Nqr8DUx7QdC2Wzqq9U9CiKp6cMmc"
-        # os.environ["PERSPECTIVE_API_KEY"]
+        self.api_key = os.environ["PERSPECTIVE_API_KEY"]
         self.client = None
 
     async def initialize(self):
@@ -189,9 +188,6 @@ class PerspectiveRanker:
     async def close(self):
         if self.client:
             await self.client.close()
-        
-        
-
         
     # Selects arm based on cohort index
     def arm_selection(self, ranking_request):

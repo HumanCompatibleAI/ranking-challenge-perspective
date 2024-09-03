@@ -1,3 +1,4 @@
+import os
 import pytest
 import aiohttp
 from aioresponses import aioresponses
@@ -34,7 +35,7 @@ def api_response(attributes):
     return api_response
 
 
-PERSPECTIVE_URL = f"{perspective_ranker.PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key=AIzaSyA4S0_Nqr8DUx7QdC2Wzqq9U9CiKp6cMmc"
+PERSPECTIVE_URL = f"{perspective_ranker.PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={os.environ["PERSPECTIVE_API_KEY"]}"
 
 async def test_rank(client):
     comments = fake_request(n_posts=1, n_comments=2)
