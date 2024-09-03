@@ -312,8 +312,8 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
         results = await ranker.rank(ranking_request)
 
         latency = time.time() - start_time 
-        logger.debug(f"ranking results: {results}")
-        logger.info(f"ranking {len(results["ranked_ids"])} items took time: {latency}")
+        logger.debug(f'ranking results: {results}')
+        logger.info(f'ranking {len(results["ranked_ids"])} items took time: {latency}')
         
         # Record metrics
         rank_calls.inc()
