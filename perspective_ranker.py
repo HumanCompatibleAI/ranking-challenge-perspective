@@ -117,7 +117,7 @@ app.add_middleware(
 
 # -- Ranking weights --
 perspective_baseline = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -126,7 +126,7 @@ perspective_baseline = {
 }
 
 perspective_outrage = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -140,7 +140,7 @@ perspective_outrage = {
 }
 
 perspective_toxicity = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -153,7 +153,7 @@ perspective_toxicity = {
 }
 
 perspective_baseline_minus_outrage_toxic = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -179,8 +179,19 @@ class PerspectiveRanker:
     )
 
     def __init__(self):
-        self.api_key = os.environ["PERSPECTIVE_API_KEY"]
+        self.api_key = "AIzaSyA4S0_Nqr8DUx7QdC2Wzqq9U9CiKp6cMmc"
+        # os.environ["PERSPECTIVE_API_KEY"]
+        self.client = None
+
+    async def initialize(self):
         self.client = aiohttp.ClientSession()
+
+    async def close(self):
+        if self.client:
+            await self.client.close()
+        
+        
+
         
     # Selects arm based on cohort index
     def arm_selection(self, ranking_request):
@@ -212,6 +223,7 @@ class PerspectiveRanker:
         # logger.debug(f"Request payload: {data}")  don't log text, it's sensitive
 
         try:
+            await self.initialize()
             response = await self.client.post(
                     url=f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
                     json=data, 
@@ -321,6 +333,8 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
         # Record metrics
         rank_calls.inc()
         ranking_latency.observe(latency)
+        
+        ranker.close()
         
         return RankingResponse(ranked_ids=results["ranked_ids"])
     

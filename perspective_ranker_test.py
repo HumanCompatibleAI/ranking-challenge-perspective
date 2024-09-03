@@ -1,10 +1,10 @@
-import os
 import pytest
-from unittest.mock import patch, Mock
+import aiohttp
+from aioresponses import aioresponses
+import asyncio
 
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
-import respx
 
 import perspective_ranker
 from ranking_challenge.fake import fake_request
@@ -34,65 +34,63 @@ def api_response(attributes):
     return api_response
 
 
-PERSPECTIVE_URL = f"{perspective_ranker.PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={os.environ["PERSPECTIVE_API_KEY"]}"
+PERSPECTIVE_URL = f"{perspective_ranker.PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key=AIzaSyA4S0_Nqr8DUx7QdC2Wzqq9U9CiKp6cMmc"
 
-
-@respx.mock
-def test_rank(client):
+async def test_rank(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
+    
+    mock  = api_response(perspective_ranker.perspective_baseline)
+    
+    with aioresponses() as mocked:
+        mocked.post(PERSPECTIVE_URL, payload=mock)
+        response = await client.post("/rank", json=jsonable_encoder(comments))
 
-    respx.post(PERSPECTIVE_URL).respond(
-        json=api_response(perspective_ranker.perspective_baseline)
-    )
+        assert response.status_code == 200, f"Request failed with status code: {response.status_code}"
 
-    response = client.post("/rank", json=jsonable_encoder(comments))
-    # Check if the request was successful (status code 200)
-    if response.status_code != 200:
-        assert False, f"Request failed with status code: {response.status_code}"
 
-    result = response.json()
-    assert len(result["ranked_ids"]) == 3
-
-@respx.mock
-def test_rank_no_score(client):
+        result = response.json()
+        assert len(result["ranked_ids"]) == 3
+        
+async def test_rank_no_score(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
+    
+    with aioresponses() as mocked:
+        mocked.post(PERSPECTIVE_URL, payload={})
+        response = await client.post("/rank", json=jsonable_encoder(comments))
 
-    respx.post(PERSPECTIVE_URL).respond(json={})
+        if response.status_code != 200:
+            assert False, f"Request failed with status code: {response.status_code}"
 
-    response = client.post("/rank", json=jsonable_encoder(comments))
-    # Check if the request was successful (status code 200)
-    if response.status_code != 200:
-        assert False, f"Request failed with status code: {response.status_code}"
+        result = response.json()
+        assert len(result["ranked_ids"]) == 3
 
-    result = response.json()
-    assert len(result["ranked_ids"]) == 3
-
-
-def test_arm_selection():
+@pytest.mark.asyncio
+async def test_arm_selection():
     rank = perspective_ranker.PerspectiveRanker()
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
     result = rank.arm_selection(comments)
 
     assert result == perspective_ranker.perspective_baseline
+    await rank.close()
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_score():
     rank = perspective_ranker.PerspectiveRanker()
 
-    respx.post(PERSPECTIVE_URL).respond(
-        json=api_response(["TOXICITY"])
-    )
+    mock = api_response(["TOXICITY"])
+    
+    with aioresponses() as mocked:
+        mocked.post(PERSPECTIVE_URL, payload=mock)
+        result = await rank.score(["TOXICITY"], "Test statement", "test_statement_id")
 
-    result = await rank.score(["TOXICITY"], "Test statement", "test_statement_id")
-
-    assert result.attr_scores == [("TOXICITY", 0.5)]
-    assert result.statement == "Test statement"
-    assert result.statement_id == "test_statement_id"
+        assert result.attr_scores == [("TOXICITY", 0.5)]
+        assert result.statement == "Test statement"
+        assert result.statement_id == "test_statement_id"
+        await rank.close()
 
 
 def test_arm_sort():
@@ -101,25 +99,25 @@ def test_arm_sort():
     scored_statements = [
         rank.ScoredStatement(
             "Test statement 2",
-            [("TOXICITY", 0.6), ("CONSTRUCTIVE_EXPERIMENTAL", 0.2)],
+            [("TOXICITY", 0.6), ("REASONING_EXPERIMENTAL", 0.2)],
             "test_statement_id_2",
             True,
         ),
         rank.ScoredStatement(
             "Test statement",
-            [("TOXICITY", 0.1), ("CONSTRUCTIVE_EXPERIMENTAL", 0.1)],
+            [("TOXICITY", 0.1), ("REASONING_EXPERIMENTAL", 0.1)],
             "test_statement_id_1",
             True,
         ),
         rank.ScoredStatement(
             "Test statement",
-            [("TOXICITY", 0), ("CONSTRUCTIVE_EXPERIMENTAL", 0)],
+            [("TOXICITY", 0), ("REASONING_EXPERIMENTAL", 0)],
             "test_statement_id_unscorable",
             False,
         ),
         rank.ScoredStatement(
             "Test statement 3",
-            [("TOXICITY", 0.9), ("CONSTRUCTIVE_EXPERIMENTAL", 0.3)],
+            [("TOXICITY", 0.9), ("REASONING_EXPERIMENTAL", 0.3)],
             "test_statement_id_3",
             True,
         ),
@@ -133,3 +131,4 @@ def test_arm_sort():
         "test_statement_id_2",
         "test_statement_id_3",
     ]
+
