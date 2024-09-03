@@ -3,7 +3,7 @@ from collections import namedtuple
 import os
 import logging
 import time
-import httpx
+import aiohttp
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
@@ -180,13 +180,8 @@ class PerspectiveRanker:
 
     def __init__(self):
         self.api_key = os.environ["PERSPECTIVE_API_KEY"]
-        limits = httpx.Limits(
-            max_keepalive_connections=KEEPALIVE_CONNECTIONS,
-            max_connections=None,
-            keepalive_expiry=KEEPALIVE_EXPIRY,
-        )
-        self.httpx_client = httpx.AsyncClient(limits=limits)
-
+        self.client = aiohttp.ClientSession()
+        
     # Selects arm based on cohort index
     def arm_selection(self, ranking_request):
         cohort = ranking_request.session.cohort
@@ -202,6 +197,10 @@ class PerspectiveRanker:
             raise ValueError(f"Unknown cohort: {cohort}")
 
     async def score(self, attributes, statement, statement_id):
+        # don't try to score empty text
+        if not statement.strip():
+            return self.ScoredStatement(statement, [], statement_id, False)
+
         headers = {"Content-Type": "application/json"}
         data = {
             "comment": {"text": statement},
@@ -209,24 +208,20 @@ class PerspectiveRanker:
             "requestedAttributes": {attr: {} for attr in attributes},
         }
 
-        # don't try to score empty text
-        if not statement.strip():
-            return self.ScoredStatement(statement, [], statement_id, False)
-
         logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
         # logger.debug(f"Request payload: {data}")  don't log text, it's sensitive
 
         try:
-            response = await self.httpx_client.post(
-                f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
-                json=data,
-                headers=headers,
-            )
-
+            response = await self.client.post(
+                    url=f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={self.api_key}",
+                    json=data, 
+                    headers=headers
+                )
+            
             response.raise_for_status()
-            response_json = response.json()
+            response_json = await response.json()
 
-            logger.debug(f"Response for statement_id {statement_id}: {response_json}")
+            # logger.debug(f"Response for statement_id {statement_id}: {response_json}")
 
             results = []
             scorable = True
@@ -244,7 +239,7 @@ class PerspectiveRanker:
             result = self.ScoredStatement(statement, results, statement_id, scorable)
             return result
 
-        except httpx.HTTPStatusError as e:
+        except aiohttp.ClientResponseError as e:
             logger.error(f"HTTP error occurred for statement_id {statement_id}: {e}")
             logger.error(f"Response content: {e.response.text}")
             raise
@@ -280,7 +275,7 @@ class PerspectiveRanker:
         }
         return result
 
-    async def rank(self, ranking_request: RankingRequest):
+    async def rank(self, ranking_request: RankingRequest):            
         arm_weights = self.arm_selection(ranking_request)
         
         # Record cohort distribution
@@ -308,7 +303,7 @@ class PerspectiveRanker:
         return result
     
 
-# Global singleton, so that all calls share the same httpx client
+# Global singleton, so that all calls share the same aiohttp client
 ranker = PerspectiveRanker()
 
 
@@ -321,7 +316,7 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
 
         latency = time.time() - start_time 
         logger.debug(f"ranking results: {results}")
-        logger.debug(f"ranking took time: {latency}")
+        logger.debug(f"ranking {len(results["ranked_ids"])} items took time: {latency}")
         
         # Record metrics
         rank_calls.inc()
