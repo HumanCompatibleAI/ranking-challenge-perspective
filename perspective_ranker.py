@@ -208,8 +208,7 @@ class PerspectiveRanker:
             "requestedAttributes": {attr: {} for attr in attributes},
         }
 
-        logger.info(f"Sending request to Perspective API for statement_id: {statement_id}")
-        # logger.debug(f"Request payload: {data}")  don't log text, it's sensitive
+        logger.debug(f"Sending request to Perspective API for statement_id: {statement_id}")
 
         try:
             response = await self.client.post(
@@ -220,8 +219,6 @@ class PerspectiveRanker:
             
             response.raise_for_status()
             response_json = await response.json()
-
-            # logger.debug(f"Response for statement_id {statement_id}: {response_json}")
 
             results = []
             scorable = True
@@ -316,7 +313,7 @@ async def main(ranking_request: RankingRequest) -> RankingResponse:
 
         latency = time.time() - start_time 
         logger.debug(f"ranking results: {results}")
-        logger.debug(f"ranking {len(results["ranked_ids"])} items took time: {latency}")
+        logger.info(f"ranking {len(results["ranked_ids"])} items took time: {latency}")
         
         # Record metrics
         rank_calls.inc()
