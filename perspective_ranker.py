@@ -27,7 +27,7 @@ dotenv.load_dotenv()
 PERSPECTIVE_HOST = os.getenv(
     "PERSPECTIVE_HOST", "https://commentanalyzer.googleapis.com"
 )
-PERSPECTIVE_URL = f"{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={os.environ["PERSPECTIVE_API_KEY"]}"
+PERSPECTIVE_URL = f'{PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={os.environ["PERSPECTIVE_API_KEY"]}'
 
 
 # -- Metrics --
