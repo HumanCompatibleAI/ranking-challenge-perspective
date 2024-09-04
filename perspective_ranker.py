@@ -94,7 +94,7 @@ if numeric_level != logging.DEBUG:
 
 # -- Ranking weights --
 perspective_baseline = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -103,7 +103,7 @@ perspective_baseline = {
 }
 
 perspective_outrage = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -117,7 +117,7 @@ perspective_outrage = {
 }
 
 perspective_toxicity = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,
@@ -130,7 +130,7 @@ perspective_toxicity = {
 }
 
 perspective_baseline_minus_outrage_toxic = {
-    "CONSTRUCTIVE_EXPERIMENTAL": 1 / 6,
+    "REASONING_EXPERIMENTAL": 1 / 6,
     "PERSONAL_STORY_EXPERIMENTAL": 1 / 6,
     "AFFINITY_EXPERIMENTAL": 1 / 6,
     "COMPASSION_EXPERIMENTAL": 1 / 6,

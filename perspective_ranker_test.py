@@ -101,25 +101,25 @@ def test_arm_sort():
     scored_statements = [
         rank.ScoredStatement(
             "Test statement 2",
-            [("TOXICITY", 0.6), ("CONSTRUCTIVE_EXPERIMENTAL", 0.2)],
+            [("TOXICITY", 0.6), ("REASONING_EXPERIMENTAL", 0.2)],
             "test_statement_id_2",
             True,
         ),
         rank.ScoredStatement(
             "Test statement",
-            [("TOXICITY", 0.1), ("CONSTRUCTIVE_EXPERIMENTAL", 0.1)],
+            [("TOXICITY", 0.1), ("REASONING_EXPERIMENTAL", 0.1)],
             "test_statement_id_1",
             True,
         ),
         rank.ScoredStatement(
             "Test statement",
-            [("TOXICITY", 0), ("CONSTRUCTIVE_EXPERIMENTAL", 0)],
+            [("TOXICITY", 0), ("REASONING_EXPERIMENTAL", 0)],
             "test_statement_id_unscorable",
             False,
         ),
         rank.ScoredStatement(
             "Test statement 3",
-            [("TOXICITY", 0.9), ("CONSTRUCTIVE_EXPERIMENTAL", 0.3)],
+            [("TOXICITY", 0.9), ("REASONING_EXPERIMENTAL", 0.3)],
             "test_statement_id_3",
             True,
         ),
