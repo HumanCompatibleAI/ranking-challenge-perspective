@@ -1,10 +1,9 @@
 import os
 import pytest
-from unittest.mock import patch, Mock
 
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
-import respx
+from aioresponses import aioresponses
 
 import perspective_ranker
 from ranking_challenge.fake import fake_request
@@ -34,38 +33,37 @@ def api_response(attributes):
     return api_response
 
 
-PERSPECTIVE_URL = f"{perspective_ranker.PERSPECTIVE_HOST}/v1alpha1/comments:analyze?key={os.environ["PERSPECTIVE_API_KEY"]}"
-
-
-@respx.mock
 def test_rank(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
 
-    respx.post(PERSPECTIVE_URL).respond(
-        json=api_response(perspective_ranker.perspective_baseline)
-    )
+    with aioresponses() as mocked:
+        mocked.post(
+            perspective_ranker.PERSPECTIVE_URL,
+            payload=api_response(perspective_ranker.perspective_baseline),
+            repeat=True
+        )
 
-    response = client.post("/rank", json=jsonable_encoder(comments))
-    # Check if the request was successful (status code 200)
-    if response.status_code != 200:
-        assert False, f"Request failed with status code: {response.status_code}"
+        response = client.post("/rank", json=jsonable_encoder(comments))
 
+    assert response.status_code == 200
     result = response.json()
     assert len(result["ranked_ids"]) == 3
 
-@respx.mock
 def test_rank_no_score(client):
     comments = fake_request(n_posts=1, n_comments=2)
     comments.session.cohort = "perspective_baseline"
 
-    respx.post(PERSPECTIVE_URL).respond(json={})
+    with aioresponses() as mocked:
+        mocked.post(
+            perspective_ranker.PERSPECTIVE_URL,
+            payload={},
+            repeat=True
+        )
 
-    response = client.post("/rank", json=jsonable_encoder(comments))
-    # Check if the request was successful (status code 200)
-    if response.status_code != 200:
-        assert False, f"Request failed with status code: {response.status_code}"
+        response = client.post("/rank", json=jsonable_encoder(comments))
 
+    assert response.status_code == 200
     result = response.json()
     assert len(result["ranked_ids"]) == 3
 
@@ -79,16 +77,18 @@ def test_arm_selection():
     assert result == perspective_ranker.perspective_baseline
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_score():
     rank = perspective_ranker.PerspectiveRanker()
 
-    respx.post(PERSPECTIVE_URL).respond(
-        json=api_response(["TOXICITY"])
-    )
+    with aioresponses() as mocked:
+        mocked.post(
+            perspective_ranker.PERSPECTIVE_URL,
+            payload=api_response(["TOXICITY"]),
+            repeat=True
+        )
 
-    result = await rank.score(["TOXICITY"], "Test statement", "test_statement_id")
+        result = await rank.score(["TOXICITY"], "Test statement", "test_statement_id")
 
     assert result.attr_scores == [("TOXICITY", 0.5)]
     assert result.statement == "Test statement"

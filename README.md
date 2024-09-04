@@ -1,14 +1,13 @@
 # Prosocial Ranking Challenge Perspective Ranker
 
-To start in dev:
-
-```bash
-uvicorn perspective_ranker:app --reload
-```
-
 To install deps:
 ```bash
 poetry install
+```
+
+To start in dev:    
+```bash
+poetry run uvicorn perspective_ranker:app --reload
 ```
 
 To test:
