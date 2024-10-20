@@ -184,7 +184,7 @@ class PerspectiveRanker:
     async def score(self, attributes, statement, statement_id):
         # don't try to score empty text
         if not statement.strip():
-            return self.ScoredStatement(statement, [], statement_id, False)
+            return self.ScoredStatement(statement, [], statement_id, False, 0)
 
         headers = {"Content-Type": "application/json"}
         data = {
