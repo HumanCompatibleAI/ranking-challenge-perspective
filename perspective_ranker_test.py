@@ -104,24 +104,28 @@ def test_arm_sort():
             [("TOXICITY", 0.6), ("REASONING_EXPERIMENTAL", 0.2)],
             "test_statement_id_2",
             True,
+            0.1,
         ),
         rank.ScoredStatement(
             "Test statement",
             [("TOXICITY", 0.1), ("REASONING_EXPERIMENTAL", 0.1)],
             "test_statement_id_1",
             True,
+            0.1,
         ),
         rank.ScoredStatement(
             "Test statement",
             [("TOXICITY", 0), ("REASONING_EXPERIMENTAL", 0)],
             "test_statement_id_unscorable",
             False,
+            0.1,
         ),
         rank.ScoredStatement(
             "Test statement 3",
             [("TOXICITY", 0.9), ("REASONING_EXPERIMENTAL", 0.3)],
             "test_statement_id_3",
             True,
+            0.1,
         ),
     ]
 
