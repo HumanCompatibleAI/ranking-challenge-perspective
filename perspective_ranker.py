@@ -17,11 +17,6 @@ from ranking_challenge.prometheus_metrics_otel_middleware import (
 )
 from prometheus_client import Counter, Histogram
 
-# each post requires a single request, so see if we can do them all at once
-KEEPALIVE_CONNECTIONS = 50
-
-# keep connections a long time to save on tcp connection startup latency
-KEEPALIVE_EXPIRY = 60 * 10
 
 dotenv.load_dotenv()
 PERSPECTIVE_HOST = os.getenv(
@@ -193,7 +188,8 @@ class PerspectiveRanker:
         )
 
         if self.client is None:
-            self.client = aiohttp.ClientSession()
+            connector = aiohttp.TCPConnector(limit_per_host=0)  # don't limit max connections
+            self.client = aiohttp.ClientSession(connector=connector)
 
         try:
             response = await self.client.post(
