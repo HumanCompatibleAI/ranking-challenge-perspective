@@ -40,6 +40,16 @@ ranking_latency = Histogram(
     "Latency of ranking operations in seconds",
     registry=registry,
 )
+scoring_latency = Histogram(
+    "scoring_latency_seconds",
+    "Latency of individual scoring operations in seconds",
+    registry=registry,
+)
+max_scoring_latency_by_request = Histogram(
+    "max_scoring_latency_by_request_seconds",
+    "Latency of the slowest scoring operation in a request, in seconds",
+    registry=registry,
+)
 score_distribution = Histogram(
     "score_distribution",
     "Distribution of scores for ranked items",
@@ -150,7 +160,7 @@ arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 
 class PerspectiveRanker:
     ScoredStatement = namedtuple(
-        "ScoredStatement", "statement attr_scores statement_id scorable"
+        "ScoredStatement", "statement attr_scores statement_id scorable latency"
     )
 
     def __init__(self):
@@ -188,13 +198,16 @@ class PerspectiveRanker:
         )
 
         if self.client is None:
-            connector = aiohttp.TCPConnector(limit_per_host=0)  # don't limit max connections
+            connector = aiohttp.TCPConnector(limit_per_host=0, limit=0)  # don't limit max connections
             self.client = aiohttp.ClientSession(connector=connector)
 
         try:
+            start_time = time.time()
             response = await self.client.post(
                 url=PERSPECTIVE_URL, json=data, headers=headers
             )
+            latency = time.time() - start_time
+            scoring_latency.observe(latency)
 
             response.raise_for_status()
             response_json = await response.json()
@@ -216,7 +229,7 @@ class PerspectiveRanker:
 
                 results.append((attr, score))
 
-            result = self.ScoredStatement(statement, results, statement_id, scorable)
+            result = self.ScoredStatement(statement, results, statement_id, scorable, latency)
             return result
 
         except aiohttp.ClientResponseError as e:
@@ -277,6 +290,9 @@ class PerspectiveRanker:
             1 for statement in scored_statements if not statement.scorable
         )
         unscorable_items.inc(unscorable_count)
+
+        max_latency = max(statement.latency for statement in scored_statements)
+        max_scoring_latency_by_request.observe(max_latency)
 
         result = self.arm_sort(arm_weights, scored_statements)
 
