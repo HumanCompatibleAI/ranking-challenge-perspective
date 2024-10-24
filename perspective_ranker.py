@@ -4,7 +4,7 @@ import os
 import logging
 import time
 import aiohttp
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 import dotenv
@@ -50,6 +50,9 @@ max_scoring_latency_by_request = Histogram(
     "Latency of the slowest scoring operation in a request, in seconds",
     registry=registry,
 )
+scoring_timeouts = Counter(
+    "scoring_timeouts", "Number of scoring operations that timed out", registry=registry
+)
 score_distribution = Histogram(
     "score_distribution",
     "Distribution of scores for ranked items",
@@ -69,6 +72,12 @@ cohort_distribution = Counter(
     "cohort_distribution",
     "Distribution of requests across different cohorts",
     ["cohort"],
+    registry=registry,
+)
+text_length = Histogram(
+    "text_length",
+    "Length of text in characters",
+    buckets=(0, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000),
     registry=registry,
 )
 
@@ -156,6 +165,7 @@ arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 
 
 # -- Ranking Logic --
+SCORING_TIMEOUT = 0.45  # seconds
 
 
 class PerspectiveRanker:
@@ -166,6 +176,7 @@ class PerspectiveRanker:
     def __init__(self):
         # can't call aiohttp.ClientSession() here, fails during pytest b/c no event loop is running
         self.client = None
+        self.scoring_timeout = aiohttp.ClientTimeout(total=SCORING_TIMEOUT) # timeout after 450ms to allow for a retry
 
     # Selects arm based on cohort index
     def arm_selection(self, ranking_request):
@@ -198,16 +209,34 @@ class PerspectiveRanker:
         )
 
         if self.client is None:
-            connector = aiohttp.TCPConnector(limit_per_host=0, limit=0)  # don't limit max connections
+            # don't limit max connections
+            connector = aiohttp.TCPConnector(
+                limit_per_host=0,
+                limit=0,
+                enable_cleanup_closed=True,
+                keepalive_timeout=45,
+            )
             self.client = aiohttp.ClientSession(connector=connector)
 
         try:
             start_time = time.time()
-            response = await self.client.post(
-                url=PERSPECTIVE_URL, json=data, headers=headers
-            )
+            for _ in range(0,3):
+                try:
+                    response = await self.client.post(
+                        url=PERSPECTIVE_URL, json=data, headers=headers, timeout=self.scoring_timeout
+                    )
+                except asyncio.TimeoutError:
+                    scoring_timeouts.inc()
+                    logger.warning(
+                        f"Timeout ({SCORING_TIMEOUT}s) scoring statement_id {statement_id}"
+                    )
+                    continue
+
             latency = time.time() - start_time
             scoring_latency.observe(latency)
+
+            if not response:
+                raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=f"Gave up after 3 timeouts while scoring statement_id {statement_id}")
 
             response.raise_for_status()
             response_json = await response.json()
@@ -277,6 +306,10 @@ class PerspectiveRanker:
 
         # Record number of items per request
         items_per_request.observe(len(ranking_request.items))
+
+        # Record length of texts
+        for item in ranking_request.items:
+            text_length.observe(len(item.text))
 
         tasks = [
             self.score(arm_weights, item.text, item.id)
