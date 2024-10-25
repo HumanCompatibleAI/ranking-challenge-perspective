@@ -221,6 +221,7 @@ class PerspectiveRanker:
         try:
             start_time = time.time()
             response_json = None
+            error_status = status.HTTP_500_INTERNAL_SERVER_ERROR
             for _ in range(0,2):
                 try:
                     response = await self.client.post(
@@ -228,18 +229,24 @@ class PerspectiveRanker:
                     )
                     response.raise_for_status()
                     response_json = await response.json()
+                    error_status = None  # success!
                 except asyncio.TimeoutError:
                     scoring_timeouts.inc()
                     logger.warning(
                         f"Timeout ({SCORING_TIMEOUT}s) scoring statement_id {statement_id} lenth {len(statement)}"
                     )
+                    error_status = status.HTTP_504_GATEWAY_TIMEOUT
+                    continue
+                except aiohttp.ClientResponseError as e:
+                    logger.error(f"Retrying after http error for statement_id {statement_id}: {e}")
+                    error_status = status.HTTP_502_BAD_GATEWAY
                     continue
 
             latency = time.time() - start_time
             scoring_latency.observe(latency)
 
-            if not response_json:
-                raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=f"Gave up after 3 timeouts while scoring statement_id {statement_id}")
+            if error_status:
+                raise HTTPException(status_code=error_status, detail=f"Gave up after 2 errors while scoring statement_id {statement_id}")
 
             results = []
             scorable = True
@@ -260,10 +267,6 @@ class PerspectiveRanker:
 
             result = self.ScoredStatement(statement, results, statement_id, scorable, latency)
             return result
-
-        except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP error occurred for statement_id {statement_id}: {e}, response: {e.response.text}")
-            raise
 
         except Exception as e:
             logger.error(
