@@ -231,7 +231,7 @@ class PerspectiveRanker:
                 except asyncio.TimeoutError:
                     scoring_timeouts.inc()
                     logger.warning(
-                        f"Timeout ({SCORING_TIMEOUT}s) scoring statement_id {statement_id}"
+                        f"Timeout ({SCORING_TIMEOUT}s) scoring statement_id {statement_id} lenth {len(statement)}"
                     )
                     continue
 
