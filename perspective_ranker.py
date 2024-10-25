@@ -220,11 +220,14 @@ class PerspectiveRanker:
 
         try:
             start_time = time.time()
+            response_json = None
             for _ in range(0,3):
                 try:
                     response = await self.client.post(
                         url=PERSPECTIVE_URL, json=data, headers=headers, timeout=self.scoring_timeout
                     )
+                    response.raise_for_status()
+                    response_json = await response.json()
                 except asyncio.TimeoutError:
                     scoring_timeouts.inc()
                     logger.warning(
@@ -235,11 +238,8 @@ class PerspectiveRanker:
             latency = time.time() - start_time
             scoring_latency.observe(latency)
 
-            if not response:
+            if not response_json:
                 raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=f"Gave up after 3 timeouts while scoring statement_id {statement_id}")
-
-            response.raise_for_status()
-            response_json = await response.json()
 
             results = []
             scorable = True
