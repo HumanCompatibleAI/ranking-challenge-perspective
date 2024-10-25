@@ -165,7 +165,7 @@ arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 
 
 # -- Ranking Logic --
-SCORING_TIMEOUT = 0.45  # seconds
+SCORING_TIMEOUT = 1.0  # seconds
 
 
 class PerspectiveRanker:
@@ -221,7 +221,7 @@ class PerspectiveRanker:
         try:
             start_time = time.time()
             response_json = None
-            for _ in range(0,3):
+            for _ in range(0,2):
                 try:
                     response = await self.client.post(
                         url=PERSPECTIVE_URL, json=data, headers=headers, timeout=self.scoring_timeout
