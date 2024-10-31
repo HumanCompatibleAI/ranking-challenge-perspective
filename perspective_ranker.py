@@ -226,8 +226,9 @@ class PerspectiveRanker:
                     response = await self.client.post(
                         url=PERSPECTIVE_URL, json=data, headers=headers, timeout=self.scoring_timeout
                     )
-                    response.raise_for_status()
+                    response.raise_for_status() # should fall through to outer try:
                     response_json = await response.json()
+                    break
                 except asyncio.TimeoutError:
                     scoring_timeouts.inc()
                     logger.warning(
@@ -238,7 +239,7 @@ class PerspectiveRanker:
             latency = time.time() - start_time
             scoring_latency.observe(latency)
 
-            if not response_json:
+            if not response_json and not response:  # empty responses are valid? at least according to our tests?
                 raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=f"Gave up after 3 timeouts while scoring statement_id {statement_id}")
 
             results = []
@@ -262,7 +263,7 @@ class PerspectiveRanker:
             return result
 
         except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP error occurred for statement_id {statement_id}: {e}, response: {e.response.text}")
+            logger.error(f"HTTP error {e.status} {e.message} occurred for statement_id {statement_id}: {await response.text()}")
             raise
 
         except Exception as e:

@@ -46,6 +46,10 @@ def test_rank(client):
 
         response = client.post("/rank", json=jsonable_encoder(comments))
 
+    # this mock does not have a call_count method for some reason
+    call_count = len(list(mocked.requests.values())[0])
+    assert call_count == 3  # not retrying successful requests
+
     assert response.status_code == 200
     result = response.json()
     assert len(result["ranked_ids"]) == 3
