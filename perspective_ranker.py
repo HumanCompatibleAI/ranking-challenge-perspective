@@ -263,8 +263,13 @@ class PerspectiveRanker:
             return result
 
         except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP error {e.status} {e.message} occurred for statement_id {statement_id}: {await response.text()}")
-            raise
+            logger.error(f"HTTP error {e.status} {e.message} occurred for statement_id {statement_id}")
+            try:
+                # try to get the response text
+                logger.error(f"HTTP error response text: {await response.text()}")
+            except Exception:
+                pass
+            raise e
 
         except Exception as e:
             logger.error(
