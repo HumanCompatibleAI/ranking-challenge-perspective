@@ -167,6 +167,9 @@ arms = [perspective_baseline, perspective_outrage, perspective_toxicity]
 # -- Ranking Logic --
 SCORING_TIMEOUT = 1.0  # seconds
 
+# Perspective API limits statement length to 20k
+MAX_STATEMENT_LENGTH = 1024 * 20  # 20k
+
 
 class PerspectiveRanker:
     ScoredStatement = namedtuple(
@@ -197,6 +200,9 @@ class PerspectiveRanker:
         if not statement.strip():
             return self.ScoredStatement(statement, [], statement_id, False, 0)
 
+        statement = statement.strip()
+        statement = statement.encode('utf-8')[:MAX_STATEMENT_LENGTH].decode('utf-8', 'ignore')  # truncate to n bytes
+
         headers = {"Content-Type": "application/json"}
         data = {
             "comment": {"text": statement},
@@ -226,8 +232,14 @@ class PerspectiveRanker:
                     response = await self.client.post(
                         url=PERSPECTIVE_URL, json=data, headers=headers, timeout=self.scoring_timeout
                     )
+                    try:
+                        # this can no longer be retrieved after we raise, but it may contain useful
+                        # error information
+                        response_json = await response.json()
+                    except:
+                        response_json = None
+
                     response.raise_for_status() # should fall through to outer try:
-                    response_json = await response.json()
                     break
                 except asyncio.TimeoutError:
                     scoring_timeouts.inc()
@@ -264,11 +276,8 @@ class PerspectiveRanker:
 
         except aiohttp.ClientResponseError as e:
             logger.error(f"HTTP error {e.status} {e.message} occurred for statement_id {statement_id}")
-            try:
-                # try to get the response text
-                logger.error(f"HTTP error response text: {await response.text()}")
-            except Exception:
-                pass
+            if response_json and "error" in response_json and "message" in response_json["error"]:
+                logger.error(f"Perspective API error message: {response_json['error']['message']}")
             raise e
 
         except Exception as e:
